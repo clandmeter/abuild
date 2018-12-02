@@ -212,7 +212,16 @@ default_sanitycheck() {
 			fi
 		done
 	fi
-
+	if [ -n "$gitsrc" ]; then
+		for i in $gitsrc; do
+			case "${i#*::}" in
+				git://*|http://*|https://*)
+					[ -z "${i%%::*}" ] && die "git reference (tag or commit id) cannot be empty";;
+				*)
+					die "Please provide a valid git or http(s) url";;
+			esac
+		done
+	fi
 	# verify that things listed in checksum also is listed in source
 	local algo=
 	for algo in md5 sha256 sha512; do
@@ -337,6 +346,14 @@ uri_fetch() {
 	abuild-fetch -d "$SRCDEST" "$uri"
 }
 
+git_clone() {
+	local uri="$1" ref="$2" repo="${1##*/}"
+	mkdir -p "$SRCDEST"
+	msg "Cloning: $uri"
+	git -c advice.detachedHead=false clone --quiet --branch "$ref" \
+		"$uri" "$srcdir/${repo%.git}-$ref"
+}
+
 is_remote() {
 	case "${1#*::}" in
 		http://*|ftp://*|https://*)
@@ -382,7 +399,7 @@ symlinksrc() {
 }
 
 default_fetch() {
-	local s
+	local s g
 	mkdir -p "$srcdir"
 	for s in $source; do
 		if is_remote "$s"; then
@@ -391,6 +408,9 @@ default_fetch() {
 		else
 			ln -sf "$startdir/$s" "$srcdir/"
 		fi
+	done
+	for g in $gitsrc; do
+		git_clone "${g#*::}" "${g%%::*}"
 	done
 }
 
